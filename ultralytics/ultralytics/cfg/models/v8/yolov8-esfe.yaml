@@ -1,0 +1,43 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# YOLOv8-ESFE object detection model with P3/8 - P5/32 outputs
+# ESFENet produces [P3, P4, P5], then Index layers route them to a standard YOLOv8 neck/head.
+
+# Parameters
+nc: 80 # number of classes
+scales: # model compound scaling constants
+  # [depth, width, max_channels]
+  n: [0.33, 0.25, 1024]
+  s: [0.33, 0.50, 1024]
+  m: [0.67, 0.75, 768]
+  l: [1.00, 1.00, 512]
+  x: [1.00, 1.25, 512]
+
+# Backbone
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, ESFENet, [256]] # 0: multi-output backbone [P3, P4, P5]
+
+# Head
+head:
+  - [0, 1, Index, [128, 0]] # 1: P3/8
+  - [0, 1, Index, [256, 1]] # 2: P4/16
+  - [0, 1, Index, [256, 2]] # 3: P5/32
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 2], 1, Concat, [1]] # cat backbone P4
+  - [-1, 3, C2f, [512]] # 6
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 1], 1, Concat, [1]] # cat backbone P3
+  - [-1, 3, C2f, [256]] # 9 (P3/8-small)
+
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 6], 1, Concat, [1]] # cat head P4
+  - [-1, 3, C2f, [512]] # 12 (P4/16-medium)
+
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 3], 1, Concat, [1]] # cat head P5
+  - [-1, 3, C2f, [1024]] # 15 (P5/32-large)
+
+  - [[9, 12, 15], 1, Detect, [nc]] # Detect(P3, P4, P5)
